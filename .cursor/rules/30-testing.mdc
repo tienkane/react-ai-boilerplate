@@ -1,0 +1,13 @@
+---
+description: Testing rules
+globs: ["**/*"]
+---
+
+Testing:
+
+- If logic is non-trivial, add tests.
+- Prefer React Testing Library for components.
+- Prefer unit tests for pure functions.
+- Avoid snapshot tests unless stable and justified.
+
+Always include a small manual test checklist in the final response.

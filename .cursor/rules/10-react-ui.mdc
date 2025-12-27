@@ -1,0 +1,17 @@
+---
+description: React UI conventions
+globs: ["**/*.tsx"]
+---
+
+React rules:
+
+- Prefer functional components + hooks.
+- Split components when a file gets hard to scan (>200-300 lines).
+- Keep state close to where it is used.
+- Always handle: loading, empty, error states for async UI.
+- Accessibility: buttons for actions, label inputs, keyboard-friendly.
+
+Styling:
+
+- Follow the project's existing styling system.
+- Do not introduce a new styling library.

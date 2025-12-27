@@ -1,0 +1,11 @@
+---
+description: TypeScript rules
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+TypeScript rules:
+
+- No `any` unless you add a comment explaining why.
+- Prefer union types and discriminated unions for state machines.
+- Export types only when reused.
+- Avoid over-abstracting types (keep readable).

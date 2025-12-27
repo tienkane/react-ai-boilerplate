@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.next
+out
+coverage
+.vite
+.turbo
+.cache
+.vercel
+.DS_Store
+*.log

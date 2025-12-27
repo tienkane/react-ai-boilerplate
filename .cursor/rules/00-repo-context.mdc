@@ -1,0 +1,20 @@
+---
+description: Repository context for AI edits
+globs: ["**/*"]
+---
+
+You are working in a personal React project.
+
+Priorities:
+
+1. Correctness
+2. Simplicity
+3. Consistency with existing code
+4. Type-safety
+5. UX polish
+
+Default assumptions unless repo says otherwise:
+
+- TypeScript is required
+- Avoid adding dependencies
+- Keep changes minimal and focused

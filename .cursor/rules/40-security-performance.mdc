@@ -1,0 +1,15 @@
+---
+description: Security + performance baseline
+globs: ["**/*"]
+---
+
+Security:
+
+- Never commit secrets.
+- Avoid dangerouslySetInnerHTML unless sanitized and approved.
+- Validate untrusted input at boundaries.
+
+Performance:
+
+- Do not prematurely optimize.
+- Use memo/useCallback only when there's a measured or obvious need.
