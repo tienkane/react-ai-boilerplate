@@ -1,39 +1,52 @@
-# Project: React AI Boilerplate Demo
+# Project: <YOUR_PROJECT_NAME>
+
+> ⚠️ **This is a template file.** Copy this to `CLAUDE.md` and fill in your project details.
 
 ## One-liner
 
-A demo React app showcasing AI-assisted development patterns.
+<!-- Describe your project in one sentence -->
+
+A personal React app for <purpose>.
 
 ## Tech stack
 
-- **React**: Vite
+<!-- Fill in your actual choices -->
+
+- **React**: <Vite | Next.js | Remix | Create React App>
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **State**: React Query + Zustand
-- **Forms**: react-hook-form
-- **Testing**: Vitest + React Testing Library, E2E: Playwright
-- **Package manager**: pnpm
-- **Lint/format**: ESLint + Prettier
+- **Styling**: <Tailwind CSS | CSS Modules | styled-components | Emotion | vanilla CSS>
+- **State**: <React Query + Zustand | Redux Toolkit | Jotai | Recoil | Context API>
+- **Forms**: <react-hook-form | Formik | native>
+- **Testing**: <Vitest | Jest> + React Testing Library, E2E: <Playwright | Cypress | none>
+- **Package manager**: <pnpm | npm | yarn | bun>
+- **Lint/format**: <ESLint + Prettier | Biome | oxlint>
 
 ## Project-specific context
 
-- This is a template/boilerplate project for demonstrating AI coding conventions
-- Focus is on developer experience and code quality
-- Should work as a starting point for any React project
+<!-- Add any important context about your project -->
+<!-- Examples: -->
+<!-- - This is a dashboard for managing X -->
+<!-- - Users are primarily on mobile devices -->
+<!-- - Performance is critical due to large data sets -->
+<!-- - Must support offline mode -->
 
 ## Key directories
 
+<!-- Map your project structure for AI understanding -->
+
 ```
 src/
-├── components/    # Shared UI components (buttons, inputs, etc.)
-├── features/      # Feature modules with co-located code
-├── hooks/         # Shared custom hooks
-├── lib/           # Utilities, helpers, constants
-├── types/         # Shared TypeScript types
-└── pages/         # Route pages
+├── components/    # <describe what goes here>
+├── features/      # <describe what goes here>
+├── hooks/         # <describe what goes here>
+├── lib/           # <describe what goes here>
+├── types/         # <describe what goes here>
+└── pages/         # <describe what goes here>
 ```
 
 ## Non-goals (important)
+
+<!-- These prevent AI from over-engineering -->
 
 - Do NOT introduce new heavy frameworks unless explicitly requested.
 - Do NOT rewrite architecture for small tasks.

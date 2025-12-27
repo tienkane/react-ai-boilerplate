@@ -1,17 +1,209 @@
 ---
-description: React UI conventions
-globs: ["**/*.tsx"]
+description: React UI component conventions
+globs: ["**/*.tsx", "**/*.jsx"]
 ---
 
-React rules:
+# React UI Conventions
 
-- Prefer functional components + hooks.
-- Split components when a file gets hard to scan (>200-300 lines).
-- Keep state close to where it is used.
-- Always handle: loading, empty, error states for async UI.
-- Accessibility: buttons for actions, label inputs, keyboard-friendly.
+## Component Structure
 
-Styling:
+### Prefer functional components with hooks
 
-- Follow the project's existing styling system.
-- Do not introduce a new styling library.
+```tsx
+// ✅ Good
+function UserCard({ user }: UserCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return <div>...</div>;
+}
+
+// ❌ Avoid class components
+class UserCard extends React.Component { ... }
+```
+
+### Component size guidelines
+
+- **< 100 lines**: Ideal, focused component
+- **100-200 lines**: Acceptable, consider splitting if logic is complex
+- **200-300 lines**: Should probably split
+- **> 300 lines**: Must split into smaller components
+
+### Split components when:
+
+- A section has its own state
+- A section is reusable
+- The file is hard to scan
+- Testing would be easier with separation
+
+## State Management
+
+### Keep state close to usage
+
+```tsx
+// ✅ Good - state lives where it's used
+function SearchResults() {
+  const [query, setQuery] = useState("");
+  return <SearchInput value={query} onChange={setQuery} />;
+}
+
+// ❌ Bad - state lifted unnecessarily high
+function App() {
+  const [searchQuery, setSearchQuery] = useState(""); // Only used in SearchResults
+  return <SearchResults query={searchQuery} />;
+}
+```
+
+### State organization
+
+```tsx
+// ✅ Good - related state grouped
+const [formState, setFormState] = useState({
+  name: "",
+  email: "",
+  isSubmitting: false,
+});
+
+// ⚠️ Acceptable for simple cases
+const [name, setName] = useState("");
+const [email, setEmail] = useState("");
+
+// ❌ Bad - boolean soup
+const [isLoading, setIsLoading] = useState(false);
+const [isError, setIsError] = useState(false);
+const [isSuccess, setIsSuccess] = useState(false);
+// Use discriminated union or state machine instead
+```
+
+## Async UI States
+
+Always handle all states for async operations:
+
+```tsx
+// ✅ Good - all states handled
+function UserList() {
+  const { data, isLoading, error } = useUsers();
+
+  if (isLoading) return <Skeleton />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!data?.length) return <EmptyState />;
+
+  return <ul>{data.map(user => <UserItem key={user.id} user={user} />)}</ul>;
+}
+
+// ❌ Bad - missing states
+function UserList() {
+  const { data } = useUsers();
+  return <ul>{data.map(...)}</ul>; // Crashes if data is undefined
+}
+```
+
+### Required states checklist
+
+- [ ] Loading state (skeleton, spinner, or disabled)
+- [ ] Error state (message + retry option)
+- [ ] Empty state (helpful message, maybe CTA)
+- [ ] Success state (the actual content)
+
+## Accessibility (a11y)
+
+### Minimum requirements
+
+```tsx
+// ✅ Buttons for actions
+<button onClick={handleDelete}>Delete</button>
+
+// ❌ Don't use divs for actions
+<div onClick={handleDelete}>Delete</div>
+
+// ✅ Labels for inputs
+<label htmlFor="email">Email</label>
+<input id="email" type="email" />
+
+// ✅ Or use aria-label
+<input aria-label="Search" type="search" />
+
+// ✅ Keyboard accessible
+<div role="button" tabIndex={0} onKeyDown={handleKeyDown} onClick={handleClick}>
+  Custom Button
+</div>
+```
+
+### Focus management
+
+- Modal opens → Focus first focusable element
+- Modal closes → Return focus to trigger
+- Form error → Focus first error field
+
+## Styling Rules
+
+### Follow the project's existing system
+
+```tsx
+// If project uses Tailwind
+<div className="flex items-center gap-4 p-2">
+
+// If project uses CSS Modules
+import styles from './UserCard.module.css';
+<div className={styles.container}>
+
+// If project uses styled-components
+const Container = styled.div`
+  display: flex;
+`;
+```
+
+### Never do
+
+- ❌ Mix styling approaches in the same project
+- ❌ Use inline styles for anything except dynamic values
+- ❌ Introduce a new styling library
+
+## Responsive Design
+
+### Mobile-first approach
+
+```tsx
+// ✅ Tailwind mobile-first
+<div className="flex flex-col md:flex-row">
+  <aside className="w-full md:w-64">Sidebar</aside>
+  <main className="flex-1">Content</main>
+</div>
+
+// ✅ Consider touch targets (min 44x44px for mobile)
+<button className="p-3 min-h-[44px]">Tap me</button>
+```
+
+### Breakpoint consistency
+
+- Use project's defined breakpoints
+- Don't introduce arbitrary breakpoint values
+- Test on mobile viewport sizes
+
+## Event Handlers
+
+### Naming convention
+
+```tsx
+// ✅ Good - handle prefix
+const handleClick = () => {};
+const handleSubmit = () => {};
+const handleUserSelect = (user: User) => {};
+
+// ✅ Props use on prefix
+<Button onClick={handleClick} onHover={handleHover} />;
+```
+
+### Prevent default when needed
+
+```tsx
+// ✅ Forms
+const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  // submit logic
+};
+
+// ✅ Links that trigger actions
+const handleNavClick = (e: React.MouseEvent) => {
+  e.preventDefault();
+  navigate(path);
+};
+```

@@ -1,0 +1,217 @@
+---
+description: Import and export conventions
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# Import & Export Conventions
+
+## Import Order
+
+Organize imports in this order, with blank lines between groups:
+
+```tsx
+// 1. React
+import { useState, useEffect } from "react";
+
+// 2. External libraries
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
+import clsx from "clsx";
+
+// 3. Internal absolute imports (@/ or ~/)
+import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
+
+// 4. Relative imports
+import { UserAvatar } from "./UserAvatar";
+import { formatUserName } from "./utils";
+
+// 5. Type imports
+import type { User } from "@/types";
+import type { UserCardProps } from "./types";
+
+// 6. Style imports (if any)
+import styles from "./UserCard.module.css";
+import "./animations.css";
+```
+
+## Export Patterns
+
+### Prefer named exports
+
+```tsx
+// ✅ Good - named exports
+export function UserCard() { ... }
+export const useUser = () => { ... };
+export type UserProps = { ... };
+
+// ✅ Good - explicit re-exports in index.ts
+export { UserCard } from './UserCard';
+export { useUser } from './useUser';
+export type { UserProps } from './types';
+
+// ⚠️ Acceptable - default for page components
+export default function HomePage() { ... }
+
+// ❌ Avoid - anonymous default exports
+export default function() { ... }
+export default () => { ... };
+```
+
+### Why named exports?
+
+- Better refactoring support (IDE can rename)
+- Clearer imports (you see what you're getting)
+- Avoids naming inconsistencies across files
+
+## Path Aliases
+
+### Use absolute imports for cross-feature imports
+
+```tsx
+// ✅ Good - absolute for imports across features
+import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/hooks/useAuth";
+
+// ✅ Good - relative for same feature/directory
+import { UserAvatar } from "./UserAvatar";
+import { formatName } from "../utils";
+
+// ❌ Bad - deep relative paths
+import { Button } from "../../../components/ui/Button";
+```
+
+### Common alias patterns
+
+```json
+// tsconfig.json paths
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/hooks/*": ["./src/hooks/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/types": ["./src/types"]
+    }
+  }
+}
+```
+
+## Avoiding Circular Dependencies
+
+### Feature index files
+
+```tsx
+// ✅ Good - explicit public API
+// features/auth/index.ts
+export { LoginForm } from "./components/LoginForm";
+export { useAuth } from "./hooks/useAuth";
+export type { User, AuthState } from "./types";
+
+// Other files import from index
+import { useAuth } from "@/features/auth";
+```
+
+### Signs of circular dependency
+
+- Import errors at runtime
+- Types showing as `any` unexpectedly
+- "Cannot access before initialization" errors
+
+### How to fix
+
+```tsx
+// ❌ Circular: A imports B, B imports A
+// userService.ts
+import { formatUser } from './userUtils'; // userUtils imports userService
+
+// ✅ Fixed: Extract shared code
+// types.ts (no imports from other local files)
+export type User = { ... };
+
+// userUtils.ts
+import type { User } from './types';
+export const formatUser = (user: User) => ...;
+
+// userService.ts
+import type { User } from './types';
+import { formatUser } from './userUtils';
+```
+
+## Barrel Files (index.ts)
+
+### When to use
+
+```tsx
+// ✅ Good - feature public API
+// features/auth/index.ts
+export { LoginForm } from "./components/LoginForm";
+export { RegisterForm } from "./components/RegisterForm";
+export { useAuth } from "./hooks/useAuth";
+
+// ✅ Good - component library
+// components/ui/index.ts
+export { Button } from "./Button";
+export { Input } from "./Input";
+export { Modal } from "./Modal";
+```
+
+### When to avoid
+
+```tsx
+// ❌ Bad - barrel file re-exports everything
+// Don't create index.ts just to re-export one file
+// components/UserCard/index.ts
+export { UserCard } from "./UserCard"; // Just import UserCard.tsx directly
+
+// ❌ Bad - barrel in deeply nested folders
+// components/forms/inputs/text/index.ts - too deep
+```
+
+## Dynamic Imports
+
+### For code splitting
+
+```tsx
+// ✅ Good - lazy load heavy components
+const HeavyEditor = lazy(() => import("./HeavyEditor"));
+
+// ✅ Good - route-based splitting
+const routes = [
+  {
+    path: "/dashboard",
+    element: lazy(() => import("./pages/Dashboard")),
+  },
+];
+
+// ✅ Good - conditional features
+const loadAnalytics = async () => {
+  const { initAnalytics } = await import("@/lib/analytics");
+  initAnalytics();
+};
+```
+
+## Type-Only Imports
+
+### Use `import type` for types
+
+```tsx
+// ✅ Good - explicit type import
+import type { User, UserRole } from "@/types";
+import type { ComponentProps } from "react";
+
+// ✅ Good - mixed import
+import { useState } from "react";
+import type { ReactNode } from "react";
+
+// ⚠️ Also acceptable with verbatimModuleSyntax
+import { type User, fetchUser } from "@/api/users";
+```
+
+### Benefits
+
+- Clearer intent (this is only for types)
+- Removed at compile time (smaller bundle)
+- Required with `verbatimModuleSyntax` in tsconfig

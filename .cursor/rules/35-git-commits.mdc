@@ -1,0 +1,242 @@
+---
+description: Git commit and PR conventions
+globs: ["**/*"]
+---
+
+# Git Conventions
+
+## Commit Message Format
+
+### Structure
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+| Type       | Description                                             |
+| ---------- | ------------------------------------------------------- |
+| `feat`     | New feature                                             |
+| `fix`      | Bug fix                                                 |
+| `docs`     | Documentation only                                      |
+| `style`    | Formatting, no code change                              |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `perf`     | Performance improvement                                 |
+| `test`     | Adding or updating tests                                |
+| `chore`    | Build process, dependencies, tooling                    |
+
+### Examples
+
+```bash
+# ✅ Good commits
+feat(auth): add password reset flow
+fix(cart): prevent duplicate items on rapid clicks
+docs(readme): add installation instructions
+refactor(api): extract common fetch logic to hook
+test(user): add edge cases for profile validation
+chore(deps): update react-query to v5
+
+# ✅ Good with body
+feat(dashboard): add export to CSV functionality
+
+Implements CSV export for dashboard data.
+Supports custom date ranges and column selection.
+
+Closes #123
+
+# ❌ Bad commits
+update stuff
+fix bug
+WIP
+asdfasdf
+```
+
+### Rules
+
+- Use lowercase for type and description
+- No period at the end of description
+- Keep first line under 72 characters
+- Use imperative mood ("add" not "added" or "adds")
+- Reference issues when applicable
+
+## Scope Guidelines
+
+Use meaningful scopes based on feature or area:
+
+```bash
+# Feature-based scopes
+feat(auth): ...
+feat(cart): ...
+feat(checkout): ...
+feat(profile): ...
+
+# Area-based scopes
+fix(api): ...
+fix(ui): ...
+refactor(hooks): ...
+test(utils): ...
+
+# No scope for global changes
+chore: update eslint config
+docs: add contributing guide
+```
+
+## Branch Naming
+
+### Format
+
+```
+<type>/<short-description>
+```
+
+### Examples
+
+```bash
+# ✅ Good branch names
+feature/user-authentication
+fix/cart-duplicate-items
+refactor/api-error-handling
+docs/api-documentation
+chore/upgrade-dependencies
+
+# ❌ Bad branch names
+my-changes
+bugfix
+john/stuff
+test123
+```
+
+## Pull Request Guidelines
+
+### PR Title
+
+Same format as commit messages:
+
+```
+feat(auth): add social login support
+```
+
+### PR Description Template
+
+```markdown
+## What
+
+Brief description of changes.
+
+## Why
+
+Reason for the change / issue being fixed.
+
+## How
+
+Technical approach taken.
+
+## Testing
+
+- [ ] Unit tests added/updated
+- [ ] Manual testing completed
+- [ ] Tested on mobile viewport
+
+## Screenshots (if UI change)
+
+| Before | After |
+| ------ | ----- |
+| img    | img   |
+
+## Checklist
+
+- [ ] Types are correct
+- [ ] No console.log or debug code
+- [ ] Follows existing patterns
+- [ ] Accessibility considered
+```
+
+### PR Size Guidelines
+
+| Lines Changed | Assessment              |
+| ------------- | ----------------------- |
+| < 50          | Perfect                 |
+| 50-200        | Good                    |
+| 200-400       | Consider splitting      |
+| > 400         | Should definitely split |
+
+### One PR = One Thing
+
+```bash
+# ✅ Good - focused PRs
+PR 1: feat(auth): add login form component
+PR 2: feat(auth): add login API integration
+PR 3: feat(auth): add login validation
+
+# ❌ Bad - kitchen sink PR
+PR 1: Add login, update header, fix typos, refactor utils
+```
+
+## Commit Hygiene
+
+### Before pushing
+
+```bash
+# Squash WIP commits
+git rebase -i HEAD~3
+
+# Ensure clean history
+git log --oneline -10
+```
+
+### During review
+
+```bash
+# Address feedback in new commits (for easier review)
+git commit -m "fix: address PR feedback - improve error handling"
+
+# Squash before merge if needed
+```
+
+## Workflow
+
+### Feature development
+
+```bash
+# 1. Create branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/user-profile
+
+# 2. Make focused commits
+git add src/features/profile/
+git commit -m "feat(profile): add profile form component"
+
+git add src/features/profile/api.ts
+git commit -m "feat(profile): add profile API integration"
+
+# 3. Push and create PR
+git push -u origin feature/user-profile
+```
+
+### Keeping up to date
+
+```bash
+# Rebase on main regularly
+git fetch origin
+git rebase origin/main
+
+# Or merge if team prefers
+git merge origin/main
+```
+
+## Reverting Changes
+
+```bash
+# Revert a commit
+git revert <commit-hash>
+git commit -m "revert: undo user profile changes"
+
+# Include reason in PR
+# "Reverting due to performance regression discovered in production"
+```

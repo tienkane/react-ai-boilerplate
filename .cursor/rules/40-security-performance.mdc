@@ -1,15 +1,261 @@
 ---
-description: Security + performance baseline
+description: Security and performance baseline
 globs: ["**/*"]
 ---
 
-Security:
+# Security & Performance
 
-- Never commit secrets.
-- Avoid dangerouslySetInnerHTML unless sanitized and approved.
-- Validate untrusted input at boundaries.
+## Security
 
-Performance:
+### Never commit secrets
 
-- Do not prematurely optimize.
-- Use memo/useCallback only when there's a measured or obvious need.
+```tsx
+// ❌ NEVER do this
+const API_KEY = "sk-1234567890abcdef";
+const DATABASE_URL = "postgres://user:password@host:5432/db";
+
+// ✅ Use environment variables
+const API_KEY = import.meta.env.VITE_API_KEY;
+const DATABASE_URL = process.env.DATABASE_URL;
+```
+
+### Environment variables
+
+```bash
+# .env.example (commit this)
+VITE_API_URL=
+VITE_ANALYTICS_ID=
+
+# .env.local (never commit)
+VITE_API_URL=https://api.example.com
+VITE_ANALYTICS_ID=UA-12345678-1
+```
+
+### Avoid dangerouslySetInnerHTML
+
+```tsx
+// ❌ Dangerous - XSS vulnerability
+<div dangerouslySetInnerHTML={{ __html: userInput }} />;
+
+// ✅ If absolutely necessary, sanitize first
+import DOMPurify from "dompurify";
+
+<div
+  dangerouslySetInnerHTML={{
+    __html: DOMPurify.sanitize(userInput),
+  }}
+/>;
+
+// ✅ Better - use a markdown library with sanitization
+import ReactMarkdown from "react-markdown";
+
+<ReactMarkdown>{userContent}</ReactMarkdown>;
+```
+
+### Validate untrusted input
+
+```tsx
+// ✅ Good - validate at boundaries
+import { z } from "zod";
+
+const UserSchema = z.object({
+  name: z.string().min(1).max(100),
+  email: z.string().email(),
+  age: z.number().int().positive().max(150),
+});
+
+async function createUser(input: unknown) {
+  const validated = UserSchema.parse(input); // Throws if invalid
+  return api.createUser(validated);
+}
+```
+
+### URL handling
+
+```tsx
+// ❌ Dangerous - allows javascript: URLs
+<a href={userProvidedUrl}>Click here</a>;
+
+// ✅ Safe - validate URL protocol
+function SafeLink({ href, children }) {
+  const isValidUrl = href.startsWith("https://") || href.startsWith("http://");
+
+  if (!isValidUrl) {
+    return <span>{children}</span>;
+  }
+
+  return (
+    <a href={href} rel="noopener noreferrer" target="_blank">
+      {children}
+    </a>
+  );
+}
+```
+
+### Authentication tokens
+
+```tsx
+// ❌ Bad - storing tokens in localStorage (XSS vulnerable)
+localStorage.setItem("token", authToken);
+
+// ✅ Better - use httpOnly cookies (set by backend)
+// The token is never accessible to JavaScript
+
+// ✅ If you must use localStorage, at least:
+// 1. Use short-lived access tokens
+// 2. Implement token refresh
+// 3. Clear on logout
+```
+
+## Performance
+
+### Do not prematurely optimize
+
+```tsx
+// ❌ Bad - premature optimization
+const MemoizedButton = memo(({ onClick, children }) => (
+  <button onClick={onClick}>{children}</button>
+));
+
+// ✅ Good - simple component, no memo needed
+function Button({ onClick, children }) {
+  return <button onClick={onClick}>{children}</button>;
+}
+```
+
+### When to use memo/useMemo/useCallback
+
+Only when there's a **measured or obvious need**:
+
+```tsx
+// ✅ Good use of memo - expensive component in a list
+const ExpensiveRow = memo(function ExpensiveRow({ data }: Props) {
+  // Complex calculations or many child components
+  return <tr>{/* ... */}</tr>;
+});
+
+// ✅ Good use of useMemo - expensive calculation
+const sortedItems = useMemo(() => {
+  return items.filter((item) => item.active).sort((a, b) => b.score - a.score);
+}, [items]);
+
+// ✅ Good use of useCallback - passed to memoized child
+const handleSelect = useCallback((id: string) => {
+  setSelected(id);
+}, []);
+
+// Used with a memoized list item
+<MemoizedListItem onSelect={handleSelect} />;
+```
+
+### Signs you might need optimization
+
+- Laggy UI interactions
+- High re-render counts in React DevTools
+- Slow scroll performance
+- Input delay when typing
+- Janky animations
+
+### Common performance patterns
+
+```tsx
+// ✅ Virtualize long lists
+import { FixedSizeList } from "react-window";
+
+function UserList({ users }) {
+  return (
+    <FixedSizeList height={400} itemCount={users.length} itemSize={50}>
+      {({ index, style }) => <UserRow user={users[index]} style={style} />}
+    </FixedSizeList>
+  );
+}
+
+// ✅ Debounce expensive operations
+import { useDebouncedCallback } from "use-debounce";
+
+function SearchInput() {
+  const [query, setQuery] = useState("");
+
+  const debouncedSearch = useDebouncedCallback((value) => {
+    performSearch(value);
+  }, 300);
+
+  return (
+    <input
+      value={query}
+      onChange={(e) => {
+        setQuery(e.target.value);
+        debouncedSearch(e.target.value);
+      }}
+    />
+  );
+}
+
+// ✅ Lazy load heavy components
+const HeavyChart = lazy(() => import("./HeavyChart"));
+
+function Dashboard() {
+  return (
+    <Suspense fallback={<ChartSkeleton />}>
+      <HeavyChart />
+    </Suspense>
+  );
+}
+```
+
+### Image optimization
+
+```tsx
+// ✅ Good - responsive images
+<img
+  src={image.url}
+  srcSet={`${image.small} 400w, ${image.medium} 800w, ${image.large} 1200w`}
+  sizes="(max-width: 600px) 400px, (max-width: 1200px) 800px, 1200px"
+  loading="lazy"
+  alt={image.alt}
+/>
+
+// ✅ Good - lazy load images below fold
+<img loading="lazy" src={offScreenImage} alt="..." />
+
+// ✅ Good - eager load critical images
+<img loading="eager" fetchpriority="high" src={heroImage} alt="..." />
+```
+
+### Bundle size awareness
+
+```tsx
+// ❌ Bad - importing entire library
+import _ from "lodash";
+const sorted = _.sortBy(items, "name");
+
+// ✅ Good - import only what you need
+import sortBy from "lodash/sortBy";
+const sorted = sortBy(items, "name");
+
+// ✅ Better - use native methods when possible
+const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+```
+
+## Performance Checklist
+
+Before marking a feature complete:
+
+- [ ] No unnecessary re-renders (check React DevTools)
+- [ ] Images are appropriately sized and lazy-loaded
+- [ ] Lists are virtualized if > 100 items
+- [ ] Heavy computations are memoized if needed
+- [ ] No blocking operations on main thread
+- [ ] Code-split large features
+- [ ] API calls are deduplicated (React Query handles this)
+
+## Security Checklist
+
+Before marking a feature complete:
+
+- [ ] No secrets in code or version control
+- [ ] User input is validated
+- [ ] No dangerouslySetInnerHTML without sanitization
+- [ ] External URLs have rel="noopener noreferrer"
+- [ ] Sensitive data not logged to console
+- [ ] API errors don't expose internal details to users

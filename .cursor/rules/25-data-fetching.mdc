@@ -1,0 +1,372 @@
+---
+description: Data fetching and API patterns
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# Data Fetching Patterns
+
+## React Query / TanStack Query
+
+### Basic query pattern
+
+```tsx
+// ✅ Good - complete query with all states
+function UserProfile({ userId }: { userId: string }) {
+  const {
+    data: user,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["user", userId],
+    queryFn: () => api.getUser(userId),
+  });
+
+  if (isLoading) return <ProfileSkeleton />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  if (!user) return <NotFound />;
+
+  return <Profile user={user} />;
+}
+```
+
+### Query key conventions
+
+```tsx
+// ✅ Good - hierarchical keys
+['users']                    // All users
+['users', 'list', filters]   // Filtered user list
+['users', userId]            // Single user
+['users', userId, 'posts']   // User's posts
+
+// ✅ Good - query key factory
+const userKeys = {
+  all: ['users'] as const,
+  lists: () => [...userKeys.all, 'list'] as const,
+  list: (filters: Filters) => [...userKeys.lists(), filters] as const,
+  details: () => [...userKeys.all, 'detail'] as const,
+  detail: (id: string) => [...userKeys.details(), id] as const,
+};
+
+// Usage
+useQuery({ queryKey: userKeys.detail(userId), ... });
+queryClient.invalidateQueries({ queryKey: userKeys.lists() });
+```
+
+### Mutation pattern
+
+```tsx
+// ✅ Good - mutation with optimistic update
+function useUpdateUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: UpdateUserInput) => api.updateUser(data),
+    onMutate: async (newData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["users", newData.id] });
+
+      // Snapshot previous value
+      const previous = queryClient.getQueryData(["users", newData.id]);
+
+      // Optimistically update
+      queryClient.setQueryData(["users", newData.id], (old: User) => ({
+        ...old,
+        ...newData,
+      }));
+
+      return { previous };
+    },
+    onError: (err, newData, context) => {
+      // Rollback on error
+      queryClient.setQueryData(["users", newData.id], context?.previous);
+    },
+    onSettled: (data, error, variables) => {
+      // Refetch after mutation
+      queryClient.invalidateQueries({ queryKey: ["users", variables.id] });
+    },
+  });
+}
+```
+
+## API Layer Organization
+
+### Centralized API client
+
+```tsx
+// lib/api/client.ts
+const BASE_URL = import.meta.env.VITE_API_URL;
+
+class ApiClient {
+  private async request<T>(path: string, options?: RequestInit): Promise<T> {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, await response.text());
+    }
+
+    return response.json();
+  }
+
+  get<T>(path: string) {
+    return this.request<T>(path);
+  }
+
+  post<T>(path: string, data: unknown) {
+    return this.request<T>(path, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ... put, delete, patch
+}
+
+export const api = new ApiClient();
+```
+
+### Feature-specific API functions
+
+```tsx
+// features/users/api.ts
+import { api } from "@/lib/api/client";
+import type { User, CreateUserInput, UpdateUserInput } from "./types";
+
+export const usersApi = {
+  getAll: () => api.get<User[]>("/users"),
+  getById: (id: string) => api.get<User>(`/users/${id}`),
+  create: (data: CreateUserInput) => api.post<User>("/users", data),
+  update: (id: string, data: UpdateUserInput) =>
+    api.put<User>(`/users/${id}`, data),
+  delete: (id: string) => api.delete(`/users/${id}`),
+};
+```
+
+## Error Handling
+
+### Custom error class
+
+```tsx
+// lib/api/errors.ts
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public message: string,
+    public code?: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+
+  get isNotFound() {
+    return this.status === 404;
+  }
+
+  get isUnauthorized() {
+    return this.status === 401;
+  }
+
+  get isValidationError() {
+    return this.status === 422;
+  }
+}
+```
+
+### Error boundary for data fetching
+
+```tsx
+// ✅ Good - error handling component
+function ErrorState({
+  error,
+  onRetry,
+}: {
+  error: Error;
+  onRetry?: () => void;
+}) {
+  const message =
+    error instanceof ApiError ? getErrorMessage(error) : "Something went wrong";
+
+  return (
+    <div role="alert" className="error-state">
+      <p>{message}</p>
+      {onRetry && <button onClick={onRetry}>Try again</button>}
+    </div>
+  );
+}
+
+function getErrorMessage(error: ApiError): string {
+  switch (error.status) {
+    case 404:
+      return "Resource not found";
+    case 401:
+      return "Please log in to continue";
+    case 403:
+      return "You don't have permission to access this";
+    case 500:
+      return "Server error. Please try again later";
+    default:
+      return error.message || "An error occurred";
+  }
+}
+```
+
+## Loading States
+
+### Skeleton components
+
+```tsx
+// ✅ Good - skeleton matches actual content layout
+function UserCardSkeleton() {
+  return (
+    <div className="user-card animate-pulse">
+      <div className="w-12 h-12 bg-gray-200 rounded-full" /> {/* Avatar */}
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-gray-200 rounded w-3/4" /> {/* Name */}
+        <div className="h-3 bg-gray-200 rounded w-1/2" /> {/* Email */}
+      </div>
+    </div>
+  );
+}
+
+// Usage
+function UserList() {
+  const { data, isLoading } = useUsers();
+
+  if (isLoading) {
+    return Array.from({ length: 5 }).map((_, i) => (
+      <UserCardSkeleton key={i} />
+    ));
+  }
+
+  return data?.map((user) => <UserCard key={user.id} user={user} />);
+}
+```
+
+### Loading indicators
+
+```tsx
+// ✅ Good - different loading states
+function DataView() {
+  const { isLoading, isFetching, data } = useQuery(...);
+
+  return (
+    <div>
+      {/* Initial load - show skeleton */}
+      {isLoading && <Skeleton />}
+
+      {/* Background refetch - subtle indicator */}
+      {isFetching && !isLoading && (
+        <div className="absolute top-0 right-0">
+          <Spinner size="sm" />
+        </div>
+      )}
+
+      {data && <Content data={data} />}
+    </div>
+  );
+}
+```
+
+## Caching Strategies
+
+### Stale-while-revalidate
+
+```tsx
+// ✅ Good - SWR-like behavior
+useQuery({
+  queryKey: ["users"],
+  queryFn: fetchUsers,
+  staleTime: 5 * 60 * 1000, // Data fresh for 5 minutes
+  gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+  refetchOnWindowFocus: true, // Refetch when user returns
+  refetchOnMount: true, // Refetch on component mount if stale
+});
+```
+
+### Cache invalidation
+
+```tsx
+// ✅ Good - invalidate related queries after mutation
+const createUser = useMutation({
+  mutationFn: usersApi.create,
+  onSuccess: () => {
+    // Invalidate all user lists
+    queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+  },
+});
+
+// ✅ Good - selective invalidation
+const updateUser = useMutation({
+  mutationFn: ({ id, data }) => usersApi.update(id, data),
+  onSuccess: (updatedUser) => {
+    // Update specific user in cache
+    queryClient.setQueryData(["users", updatedUser.id], updatedUser);
+    // Invalidate lists that might include this user
+    queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+  },
+});
+```
+
+## Pagination
+
+### Infinite scroll pattern
+
+```tsx
+function UserList() {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ["users", "infinite"],
+      queryFn: ({ pageParam = 0 }) =>
+        api.getUsers({ offset: pageParam, limit: 20 }),
+      getNextPageParam: (lastPage, pages) => {
+        return lastPage.hasMore ? pages.length * 20 : undefined;
+      },
+    });
+
+  return (
+    <>
+      {data?.pages.flatMap((page) =>
+        page.users.map((user) => <UserCard key={user.id} user={user} />)
+      )}
+
+      {hasNextPage && (
+        <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+          {isFetchingNextPage ? "Loading..." : "Load more"}
+        </button>
+      )}
+    </>
+  );
+}
+```
+
+## Request Deduplication
+
+### Prevent duplicate requests
+
+```tsx
+// React Query handles this automatically
+// Multiple components can call the same query - only one request is made
+
+function UserName({ userId }: { userId: string }) {
+  const { data } = useQuery({
+    queryKey: ["user", userId],
+    queryFn: () => api.getUser(userId),
+  });
+  return <span>{data?.name}</span>;
+}
+
+function UserAvatar({ userId }: { userId: string }) {
+  // Same query key = same cached data, no duplicate request
+  const { data } = useQuery({
+    queryKey: ["user", userId],
+    queryFn: () => api.getUser(userId),
+  });
+  return <img src={data?.avatar} />;
+}
+```

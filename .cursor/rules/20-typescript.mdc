@@ -1,11 +1,304 @@
 ---
-description: TypeScript rules
+description: TypeScript rules and patterns
 globs: ["**/*.ts", "**/*.tsx"]
 ---
 
-TypeScript rules:
+# TypeScript Rules
 
-- No `any` unless you add a comment explaining why.
-- Prefer union types and discriminated unions for state machines.
-- Export types only when reused.
-- Avoid over-abstracting types (keep readable).
+## The `any` Type
+
+### Never use `any` without justification
+
+```tsx
+// ❌ Bad - unexplained any
+const data: any = await fetchData();
+const handleEvent = (e: any) => { ... };
+
+// ✅ Good - use unknown for truly unknown data
+const data: unknown = await fetchData();
+if (isUser(data)) {
+  console.log(data.name); // Now typed as User
+}
+
+// ✅ Acceptable - explained any for specific reasons
+// any: Legacy API response doesn't have types, will be typed in #123
+const legacyData: any = await oldApi.getUsers();
+
+// ✅ Good - type assertion when you know more than TS
+const element = document.getElementById('root') as HTMLDivElement;
+```
+
+### Alternatives to `any`
+
+| Instead of                | Use                        |
+| ------------------------- | -------------------------- |
+| `any` for unknown data    | `unknown` + type guard     |
+| `any` for "anything goes" | `unknown` or generic `<T>` |
+| `any` for event handlers  | Proper event types         |
+| `any` for complex objects | Proper interface/type      |
+
+## Union Types & Discriminated Unions
+
+### Prefer unions for state machines
+
+```tsx
+// ✅ Good - discriminated union for async state
+type AsyncState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: T }
+  | { status: "error"; error: Error };
+
+function UserProfile() {
+  const [state, setState] = useState<AsyncState<User>>({ status: "idle" });
+
+  switch (state.status) {
+    case "loading":
+      return <Spinner />;
+    case "error":
+      return <Error message={state.error.message} />;
+    case "success":
+      return <Profile user={state.data} />;
+    default:
+      return <Button onClick={load}>Load Profile</Button>;
+  }
+}
+
+// ❌ Bad - boolean soup
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState<Error | null>(null);
+const [data, setData] = useState<User | null>(null);
+// Problem: Can have isLoading=true AND error set simultaneously
+```
+
+### Union for limited options
+
+```tsx
+// ✅ Good - explicit options
+type ButtonVariant = "primary" | "secondary" | "danger";
+type Size = "sm" | "md" | "lg";
+
+// ❌ Bad - stringly typed
+type ButtonVariant = string; // Allows any string
+```
+
+## Type Organization
+
+### Keep types close to usage
+
+```tsx
+// ✅ Good - types in the same file when only used there
+// UserCard.tsx
+type UserCardProps = {
+  user: User;
+  onSelect?: (user: User) => void;
+};
+
+export function UserCard({ user, onSelect }: UserCardProps) { ... }
+```
+
+### Extract when shared
+
+```tsx
+// ✅ Good - shared types in dedicated file
+// types/user.ts (or features/users/types.ts)
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+};
+
+export type UserRole = "admin" | "user" | "guest";
+
+// Used in multiple files
+import type { User } from "@/types/user";
+```
+
+### Type file organization
+
+```
+types/
+├── index.ts      # Re-exports all public types
+├── user.ts       # User-related types
+├── api.ts        # API response/request types
+└── common.ts     # Shared utility types
+```
+
+## Interface vs Type
+
+### General guidance
+
+```tsx
+// Use `type` for:
+// - Union types
+// - Mapped types
+// - Utility types
+// - Function types
+type Status = "active" | "inactive";
+type UserKeys = keyof User;
+type Nullable<T> = T | null;
+type Handler = (event: Event) => void;
+
+// Use `interface` for:
+// - Object shapes (especially if extendable)
+// - Class implementations
+// - Declaration merging needs
+interface User {
+  id: string;
+  name: string;
+}
+
+interface AdminUser extends User {
+  permissions: string[];
+}
+```
+
+### Be consistent with codebase
+
+- If project uses `type` for everything → use `type`
+- If project uses `interface` for objects → use `interface`
+- Don't mix without reason
+
+## Type Inference
+
+### Let TypeScript infer when obvious
+
+```tsx
+// ✅ Good - inference is clear
+const name = "John"; // string
+const count = 42; // number
+const users = [user1, user2]; // User[]
+
+// ✅ Good - explicit when not obvious
+const [user, setUser] = useState<User | null>(null);
+const cache = new Map<string, User>();
+
+// ❌ Bad - redundant type annotation
+const name: string = "John";
+const count: number = 42;
+const isActive: boolean = true;
+```
+
+### Always type function parameters
+
+```tsx
+// ✅ Good - parameters are typed
+function formatUser(user: User): string {
+  return `${user.name} <${user.email}>`;
+}
+
+// ✅ Good - return type inferred (simple function)
+function add(a: number, b: number) {
+  return a + b; // Return type inferred as number
+}
+
+// ✅ Better for complex functions - explicit return
+function processUsers(users: User[]): ProcessedUser[] {
+  // Complex logic...
+}
+
+// ❌ Bad - untyped parameters
+function formatUser(user) { ... }
+```
+
+## Generic Types
+
+### Use generics for reusable code
+
+```tsx
+// ✅ Good - generic hook
+function useLocalStorage<T>(key: string, defaultValue: T) {
+  const [value, setValue] = useState<T>(() => {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : defaultValue;
+  });
+  // ...
+  return [value, setValue] as const;
+}
+
+// Usage - type is inferred
+const [user, setUser] = useLocalStorage("user", null as User | null);
+const [theme, setTheme] = useLocalStorage("theme", "light");
+```
+
+### Constrain generics when needed
+
+```tsx
+// ✅ Good - constrained generic
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+// ✅ Good - default generic
+function createList<T = string>(): T[] {
+  return [];
+}
+```
+
+## Utility Types
+
+### Common patterns
+
+```tsx
+// Pick specific properties
+type UserPreview = Pick<User, "id" | "name" | "avatar">;
+
+// Omit properties
+type CreateUserInput = Omit<User, "id" | "createdAt">;
+
+// Make all optional
+type PartialUser = Partial<User>;
+
+// Make all required
+type RequiredUser = Required<User>;
+
+// Make readonly
+type ReadonlyUser = Readonly<User>;
+
+// Record for dictionaries
+type UserMap = Record<string, User>;
+
+// Extract function return type
+type ApiResponse = ReturnType<typeof fetchUsers>;
+
+// Extract component props
+type ButtonProps = ComponentProps<typeof Button>;
+```
+
+## Assertions & Guards
+
+### Type guards for runtime checks
+
+```tsx
+// ✅ Good - type guard function
+function isUser(value: unknown): value is User {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    "name" in value
+  );
+}
+
+// Usage
+const data: unknown = await fetch("/api/user").then((r) => r.json());
+if (isUser(data)) {
+  console.log(data.name); // Typed as User
+}
+```
+
+### Avoid non-null assertion when possible
+
+```tsx
+// ❌ Risky - non-null assertion
+const user = users.find((u) => u.id === id)!;
+user.name; // Could crash if not found
+
+// ✅ Better - handle the undefined case
+const user = users.find((u) => u.id === id);
+if (!user) {
+  throw new Error(`User ${id} not found`);
+}
+user.name; // Safely typed
+```

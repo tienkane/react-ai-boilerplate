@@ -1,20 +1,60 @@
 ---
-description: Repository context for AI edits
+description: Repository context and global priorities for AI edits
 globs: ["**/*"]
+alwaysApply: true
 ---
 
-You are working in a personal React project.
+# Repository Context
 
-Priorities:
+You are working in a personal React project with TypeScript.
 
-1. Correctness
-2. Simplicity
-3. Consistency with existing code
-4. Type-safety
-5. UX polish
+## Priority Hierarchy
 
-Default assumptions unless repo says otherwise:
+When making decisions, follow this order:
 
-- TypeScript is required
-- Avoid adding dependencies
+1. **Correctness** — Does it work? Does it handle edge cases?
+2. **Simplicity** — Is this the simplest solution that works?
+3. **Consistency** — Does it match existing patterns in the codebase?
+4. **Type-safety** — Are types correct and meaningful?
+5. **UX polish** — Does it handle loading/error/empty states?
+
+## Default Assumptions
+
+Unless the codebase explicitly shows otherwise:
+
+- TypeScript is required (no `.js` files)
+- Avoid adding new dependencies
 - Keep changes minimal and focused
+- Follow existing code patterns, even if you'd do it differently
+- One logical change per commit
+
+## Before You Write Code
+
+1. **Scan related files** — Understand existing patterns
+2. **Check for similar implementations** — Follow established conventions
+3. **Identify the minimal change** — Don't refactor beyond scope
+
+## Change Scope Rules
+
+✅ **DO:**
+
+- Touch only files necessary for the task
+- Follow existing naming conventions
+- Match existing code style
+- Add types for new code
+
+❌ **DON'T:**
+
+- Refactor unrelated code
+- "Improve" existing code outside scope
+- Add dependencies without explicit approval
+- Change file organization without asking
+
+## Output Expectations
+
+Every response should be:
+
+- **Reviewable** — Clear enough for a human to review
+- **Explainable** — You can justify every change
+- **Minimal** — No unnecessary changes
+- **Complete** — Handles edge cases and errors

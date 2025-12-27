@@ -1,13 +1,306 @@
 ---
-description: Testing rules
-globs: ["**/*"]
+description: Testing conventions and expectations
+globs: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
 ---
 
-Testing:
+# Testing Conventions
 
-- If logic is non-trivial, add tests.
-- Prefer React Testing Library for components.
-- Prefer unit tests for pure functions.
-- Avoid snapshot tests unless stable and justified.
+## When to Write Tests
 
-Always include a small manual test checklist in the final response.
+### Always test
+
+- Business logic functions
+- Custom hooks with complex logic
+- Form validation
+- Data transformations
+- Critical user flows
+
+### Consider testing
+
+- Components with conditional rendering
+- Integration between multiple hooks
+- Error handling paths
+
+### Skip tests for
+
+- Simple presentational components
+- Direct library wrappers
+- Trivial getters/setters
+
+## Testing Philosophy
+
+```tsx
+// ✅ Good - test behavior, not implementation
+test("user can submit the form with valid data", async () => {
+  render(<ContactForm />);
+
+  await userEvent.type(screen.getByLabelText("Email"), "test@example.com");
+  await userEvent.type(screen.getByLabelText("Message"), "Hello");
+  await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+  expect(await screen.findByText("Message sent!")).toBeInTheDocument();
+});
+
+// ❌ Bad - testing implementation details
+test("setEmail is called when typing", () => {
+  const setEmail = vi.fn();
+  render(<EmailInput setEmail={setEmail} />);
+
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "a" } });
+
+  expect(setEmail).toHaveBeenCalledWith("a"); // Implementation detail
+});
+```
+
+## React Testing Library
+
+### Query priority
+
+Use queries in this order (most to least preferred):
+
+```tsx
+// 1. Accessible queries (best)
+screen.getByRole("button", { name: "Submit" });
+screen.getByLabelText("Email address");
+screen.getByPlaceholderText("Search...");
+screen.getByText("Welcome back");
+
+// 2. Semantic queries
+screen.getByAltText("User avatar");
+screen.getByTitle("Close modal");
+
+// 3. Test IDs (last resort)
+screen.getByTestId("custom-dropdown");
+```
+
+### Async handling
+
+```tsx
+// ✅ Good - use findBy for async content
+test("loads user data", async () => {
+  render(<UserProfile userId="123" />);
+
+  // Shows loading state initially
+  expect(screen.getByText("Loading...")).toBeInTheDocument();
+
+  // Wait for content to appear
+  expect(await screen.findByText("John Doe")).toBeInTheDocument();
+});
+
+// ✅ Good - waitFor for assertions
+test("form shows validation error", async () => {
+  render(<LoginForm />);
+
+  await userEvent.click(screen.getByRole("button", { name: "Login" }));
+
+  await waitFor(() => {
+    expect(screen.getByText("Email is required")).toBeInTheDocument();
+  });
+});
+
+// ❌ Bad - arbitrary waits
+await new Promise((resolve) => setTimeout(resolve, 1000));
+```
+
+### User interactions
+
+```tsx
+// ✅ Good - use userEvent for realistic interactions
+import userEvent from "@testing-library/user-event";
+
+test("form submission", async () => {
+  const user = userEvent.setup();
+  render(<Form />);
+
+  await user.type(screen.getByLabelText("Name"), "John");
+  await user.click(screen.getByRole("button", { name: "Submit" }));
+});
+
+// ⚠️ Acceptable for simple cases
+import { fireEvent } from "@testing-library/react";
+
+test("button click", () => {
+  render(<Button onClick={handleClick} />);
+  fireEvent.click(screen.getByRole("button"));
+});
+```
+
+## Unit Testing Pure Functions
+
+```tsx
+// utils/formatters.ts
+export function formatCurrency(amount: number, currency = "USD"): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+  }).format(amount);
+}
+
+// utils/formatters.test.ts
+describe("formatCurrency", () => {
+  it("formats USD by default", () => {
+    expect(formatCurrency(1234.56)).toBe("$1,234.56");
+  });
+
+  it("handles zero", () => {
+    expect(formatCurrency(0)).toBe("$0.00");
+  });
+
+  it("handles negative amounts", () => {
+    expect(formatCurrency(-100)).toBe("-$100.00");
+  });
+
+  it("formats other currencies", () => {
+    expect(formatCurrency(100, "EUR")).toBe("€100.00");
+  });
+});
+```
+
+## Testing Hooks
+
+```tsx
+// hooks/useCounter.test.ts
+import { renderHook, act } from "@testing-library/react";
+import { useCounter } from "./useCounter";
+
+describe("useCounter", () => {
+  it("initializes with default value", () => {
+    const { result } = renderHook(() => useCounter());
+    expect(result.current.count).toBe(0);
+  });
+
+  it("initializes with provided value", () => {
+    const { result } = renderHook(() => useCounter(10));
+    expect(result.current.count).toBe(10);
+  });
+
+  it("increments the count", () => {
+    const { result } = renderHook(() => useCounter());
+
+    act(() => {
+      result.current.increment();
+    });
+
+    expect(result.current.count).toBe(1);
+  });
+});
+```
+
+## Mocking
+
+### Mock API calls
+
+```tsx
+// ✅ Good - mock at the network level with MSW
+import { rest } from "msw";
+import { setupServer } from "msw/node";
+
+const server = setupServer(
+  rest.get("/api/users/:id", (req, res, ctx) => {
+    return res(ctx.json({ id: req.params.id, name: "John" }));
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+test("displays user name", async () => {
+  render(<UserProfile userId="123" />);
+  expect(await screen.findByText("John")).toBeInTheDocument();
+});
+```
+
+### Mock modules
+
+```tsx
+// ✅ Good - mock specific functions
+vi.mock("@/lib/analytics", () => ({
+  trackEvent: vi.fn(),
+}));
+
+// ✅ Good - partial mock
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual("@/lib/api");
+  return {
+    ...actual,
+    fetchUser: vi.fn(),
+  };
+});
+```
+
+## Snapshot Tests
+
+### When to use
+
+```tsx
+// ✅ Acceptable - stable, complex output
+test("renders error message correctly", () => {
+  const error = new ApiError(404, "User not found");
+  const { container } = render(<ErrorDisplay error={error} />);
+  expect(container).toMatchSnapshot();
+});
+
+// ❌ Avoid - frequently changing components
+test("renders user profile", () => {
+  render(<UserProfile user={mockUser} />);
+  expect(screen.getByTestId("profile")).toMatchSnapshot(); // Fragile
+});
+```
+
+### Snapshot guidelines
+
+- Use sparingly
+- Review snapshot diffs carefully
+- Consider inline snapshots for small outputs
+- Delete unused snapshots
+
+## Test Organization
+
+```tsx
+describe('LoginForm', () => {
+  // Group related tests
+  describe('validation', () => {
+    it('shows error when email is empty', async () => { ... });
+    it('shows error when email is invalid', async () => { ... });
+    it('shows error when password is too short', async () => { ... });
+  });
+
+  describe('submission', () => {
+    it('calls onSubmit with form data', async () => { ... });
+    it('shows loading state during submission', async () => { ... });
+    it('shows error message on failure', async () => { ... });
+  });
+
+  describe('accessibility', () => {
+    it('has no accessibility violations', async () => { ... });
+    it('focuses first error field on invalid submit', async () => { ... });
+  });
+});
+```
+
+## Manual Test Checklist
+
+Every AI response with UI changes should include:
+
+```markdown
+## Manual Test Checklist
+
+- [ ] Component renders without errors
+- [ ] Loading state displays correctly
+- [ ] Error state displays correctly
+- [ ] Empty state displays correctly
+- [ ] Success state displays correctly
+- [ ] Keyboard navigation works
+- [ ] Screen reader announces correctly
+- [ ] Mobile viewport looks correct
+- [ ] Form validation shows appropriate errors
+- [ ] Submit button disabled during loading
+```
+
+## Coverage Guidelines
+
+- Aim for meaningful coverage, not 100%
+- Focus on critical paths and edge cases
+- Don't test implementation details
+- Integration tests > many unit tests for components
